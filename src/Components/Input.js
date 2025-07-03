@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
 import './Input.css';
 
 const HARDCODED_FILE = {
@@ -16,7 +17,6 @@ const downloadHardcodedFile = () => {
   document.body.removeChild(element);
 };
 
-// ...existing code...
 const Input = () => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
@@ -26,7 +26,7 @@ const Input = () => {
   const [requestMessage, setRequestMessage] = useState('');
   const [step, setStep] = useState(0); // 0: greet, 1: ask repo, 2: ask request, 3: processing
 
-  const API_ENDPOINT = 'need to add a endpoint here';
+  const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
 
   useEffect(() => {
     setMessages([
@@ -38,86 +38,104 @@ const Input = () => {
     setStep(1);
   }, []);
 
-  // ...existing code...
-const handleSend = async () => {
-  if (!inputText.trim()) {
-    alert('Cannot send empty message');
-    return;
-  }
+  const handleSend = async () => {
+    if (!inputText.trim()) {
+      alert('Cannot send empty message');
+      return;
+    }
 
-  const newMessage = { text: inputText, file: selectedFile, sender: 'user' };
-  setMessages((prev) => [...prev, newMessage]);
-  setInputText('');
-  setSelectedFile(null);
+    const newMessage = { text: inputText, file: selectedFile, sender: 'user' };
+    setMessages((prev) => [...prev, newMessage]);
+    setInputText('');
+    setSelectedFile(null);
 
-  if (step === 1) {
-    // After any first user message, ask for GitHub repo link
-    setMessages((prev) => [
-      ...prev,
-      {
-        text: 'Please provide your github-repo-link:',
-        sender: 'bot'
-      }
-    ]);
-    setStep(2);
-  } else if (step === 2) {
-    // Store GitHub repo and ask for request message
-    setGithubRepo(inputText);
-    setMessages((prev) => [
-      ...prev,
-      {
-        text: 'Now, please provide your request message:',
-        sender: 'bot'
-      }
-    ]);
-    setStep(3);
-  } else if (step === 3) {
-    // Store request message and proceed
-    setRequestMessage(inputText);
-    setMessages((prev) => [
-      ...prev,
-      {
-        text: 'Thanks for providing the details. We are working on it!',
-        sender: 'bot'
-      }
-    ]);
-    setStep(4);
+    if (step === 1) {
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: 'Please provide your github-repo-link:',
+          sender: 'bot'
+        }
+      ]);
+      setStep(2);
+    } else if (step === 2) {
+      setGithubRepo(inputText);
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: 'Now, please provide your request message:',
+          sender: 'bot'
+        }
+      ]);
+      setStep(3);
+    } else if (step === 3) {
+      const currentRequestMessage = inputText;
+      setRequestMessage(currentRequestMessage);
 
-    // Send details to the backend
-    try {
-      const response = await fetch(API_ENDPOINT, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          githubRepo,
-          requestMessage: inputText 
-        })
-      });
-      console.log('Sending data to backend:', { githubRepo, requestMessage: inputText });
+      setMessages((prev) => [
+        ...prev,
+        {
+          text: 'Thanks for providing the details. We are working on it!',
+          sender: 'bot'
+        }
+      ]);
+      setStep(4);
 
-      if (response.ok) {
-        const data = await response.json();
-        setMessages((prev) => [
-          ...prev,
-          {
-            text: 'In progress...',
-            sender: 'bot'
-          }
-        ]);
+      try {
+        const res = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            githubRepo,
+            requestMessage: currentRequestMessage
+          }),
+        });
 
-        setTimeout(() => {
+        if (res.ok) {
+          const data = await res.json();
           setMessages((prev) => [
             ...prev,
             {
-              text: `MR details link changes done!!! Thanks! ${data.detailsLink}`,
-              sender: 'bot',
-              showDownload: true
+              text: 'In progress...',
+              sender: 'bot'
             }
           ]);
-        }, 3000);
-      } else {
+
+          setTimeout(() => {
+            setMessages((prev) => [
+              ...prev,
+              {
+                text: (
+                  <>
+                    <div>
+                      <strong>MR Details:</strong>
+                      <pre style={{ whiteSpace: 'pre-wrap' }}>{data.mr_details}</pre>
+                    </div>
+                    <div>
+                      <a href={data.mr_link} target="_blank" rel="noopener noreferrer">
+                        View Merge Request
+                      </a>
+                    </div>
+                  </>
+                ),
+                sender: 'bot',
+                showDownload: true
+              }
+            ]);
+          }, 3000);
+        } else {
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: 'There was an error processing your request. Please try again.',
+              sender: 'bot'
+            }
+          ]);
+        }
+      } catch (error) {
+        console.error('Error:', error);
         setMessages((prev) => [
           ...prev,
           {
@@ -126,18 +144,8 @@ const handleSend = async () => {
           }
         ]);
       }
-    } catch (error) {
-      console.error('Error:', error);
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: 'There was an error processing your request. Please try again.',
-          sender: 'bot'
-        }
-      ]);
     }
-  }
-};
+  };
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') handleSend();
@@ -151,8 +159,7 @@ const handleSend = async () => {
   return (
     <div className="agentic-container">
       <nav className="navbar">
-        <div className="nav-links">
-        </div>
+        <div className="nav-links"></div>
         <h2 className="title">LegacyTransform AI ✨</h2>
       </nav>
 
@@ -173,11 +180,12 @@ const handleSend = async () => {
                 {msg.text}
               </p>
               {msg.file && msg.sender !== 'bot' && <p>📎 {msg.file.name}</p>}
-              {msg.sender === 'bot' && msg.showDownload && (
+              {/* Uncomment below to enable download button */}
+              {/* {msg.sender === 'bot' && msg.showDownload && (
                 <button className="download-btn" onClick={downloadHardcodedFile}>
                   Download File
                 </button>
-              )}
+              )} */}
             </div>
           ))
         )}
@@ -195,9 +203,9 @@ const handleSend = async () => {
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyPress}
-          className='input-textarea'
+          className="input-textarea"
         />
-        <button onClick={handleSend} title="Send">➤</button>
+        {/* <button onClick={handleSend} title="Send">➤</button> */}
       </div>
 
       {selectedFile && !fileError && (
