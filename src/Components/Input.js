@@ -6,8 +6,7 @@ const HARDCODED_FILE = {
   name: 'sample.txt',
   content: 'This is a hardcoded file content for download.'
 };
-
-
+//comment
 const downloadHardcodedFile = () => {
   const element = document.createElement('a');
   const file = new Blob([HARDCODED_FILE.content], { type: 'text/plain' });
