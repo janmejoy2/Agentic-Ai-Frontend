@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import './Input.css';
 
 const HARDCODED_FILE = {
   name: 'sample.txt',
   content: 'This is a hardcoded file content for download.'
 };
-//comment
+
 const downloadHardcodedFile = () => {
   const element = document.createElement('a');
   const file = new Blob([HARDCODED_FILE.content], { type: 'text/plain' });
@@ -24,18 +23,21 @@ const Input = () => {
   const [fileError, setFileError] = useState('');
   const [githubRepo, setGithubRepo] = useState('');
   const [requestMessage, setRequestMessage] = useState('');
-  const [step, setStep] = useState(0); // 0: greet, 1: ask repo, 2: ask request, 3: processing
+  const [step, setStep] = useState(2); // Start at step 2 to ask for repo
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
 
   useEffect(() => {
     setMessages([
       {
-        text: 'Hello! Please start the conversation.',
+        text: 'Hi there! I am Legacy AI, your assistant for transforming legacy code into modern code.',
+        sender: 'bot'
+      },
+      {
+        text: 'Please provide your GitHub repo link:',
         sender: 'bot'
       }
     ]);
-    setStep(1);
   }, []);
 
   const handleSend = async () => {
@@ -49,70 +51,54 @@ const Input = () => {
     setInputText('');
     setSelectedFile(null);
 
-    if (step === 1) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: 'Please provide your github-repo-link:',
-          sender: 'bot'
-        }
-      ]);
-      setStep(2);
-    } else if (step === 2) {
+    if (step === 2) {
       setGithubRepo(inputText);
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: 'Now, please provide your request message:',
-          sender: 'bot'
-        }
-      ]);
-      setStep(3);
-    } else if (step === 3) {
-      const currentRequestMessage = inputText;
-      setRequestMessage(currentRequestMessage);
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          text: 'Thanks for providing the details. We are working on it!',
-          sender: 'bot'
-        }
-      ]);
-      setStep(4);
-
       try {
-        const res = await fetch(API_ENDPOINT, {
+        const res = await fetch('http://127.0.0.1:5000/summarize', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            githubRepo,
-            requestMessage: currentRequestMessage
-          }),
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ githubRepo: inputText }),
         });
 
         if (res.ok) {
           const data = await res.json();
           setMessages((prev) => [
             ...prev,
-            {
-              text: 'In progress...',
-              sender: 'bot'
-            }
+            { text: `Summary: ${data.summary}`, sender: 'bot' },
+            { text: 'Now, please provide your requirement:', sender: 'bot' }
           ]);
+          setStep(3);
+        }
+      } catch (error) {
+        console.error('Summary fetch error:', error);
+      }
+    } else if (step === 3) {
+      const currentRequestMessage = inputText;
+      setRequestMessage(currentRequestMessage);
 
+      setMessages((prev) => [
+        ...prev,
+        { text: 'Thanks for providing the details. We are working on it!', sender: 'bot' }
+      ]);
+      setStep(4);
+
+      try {
+        const res = await fetch(API_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ githubRepo, requestMessage: currentRequestMessage }),
+        });
+
+        if (res.ok) {
+          const data = await res.json();
           setTimeout(() => {
             setMessages((prev) => [
               ...prev,
               {
                 text: (
                   <>
-                    <div>
-                      <strong>MR Details:</strong>
-                      <pre style={{ whiteSpace: 'pre-wrap' }}>{data.mr_details}</pre>
-                    </div>
+                    <div><strong>MR Details:</strong></div>
+                    <pre style={{ whiteSpace: 'pre-wrap' }}>{data.mr_details}</pre>
                     <div>
                       <a href={data.mr_link} target="_blank" rel="noopener noreferrer">
                         View Merge Request
@@ -128,20 +114,14 @@ const Input = () => {
         } else {
           setMessages((prev) => [
             ...prev,
-            {
-              text: 'There was an error processing your request. Please try again.',
-              sender: 'bot'
-            }
+            { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
           ]);
         }
       } catch (error) {
-        console.error('Error:', error);
+        console.error('Request error:', error);
         setMessages((prev) => [
           ...prev,
-          {
-            text: 'There was an error processing your request. Please try again.',
-            sender: 'bot'
-          }
+          { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
         ]);
       }
     }
@@ -180,23 +160,17 @@ const Input = () => {
                 {msg.text}
               </p>
               {msg.file && msg.sender !== 'bot' && <p>📎 {msg.file.name}</p>}
-              {/* Uncomment below to enable download button */}
-              {/* {msg.sender === 'bot' && msg.showDownload && (
+              {msg.sender === 'bot' && msg.showDownload && (
                 <button className="download-btn" onClick={downloadHardcodedFile}>
                   Download File
                 </button>
-              )} */}
+              )}
             </div>
           ))
         )}
       </div>
 
       <div className="input-area">
-        <label className="file-label" title="Attach a file">
-          <span className="plus-icon">+</span>
-          <input type="file" onChange={handleFileChange} />
-        </label>
-
         <input
           type="text"
           placeholder="Please type your message..."
@@ -205,7 +179,6 @@ const Input = () => {
           onKeyDown={handleKeyPress}
           className="input-textarea"
         />
-        {/* <button onClick={handleSend} title="Send">➤</button> */}
       </div>
 
       {selectedFile && !fileError && (
