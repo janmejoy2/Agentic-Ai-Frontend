@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './Input.css';
 
 const HARDCODED_FILE = {
@@ -23,23 +23,58 @@ const Input = () => {
   const [fileError, setFileError] = useState('');
   const [githubRepo, setGithubRepo] = useState('');
   const [requestMessage, setRequestMessage] = useState('');
-  const [step, setStep] = useState(2); // Start at step 2 to ask for repo
+  const [step, setStep] = useState(2); 
+  const chatBoxRef = useRef(null);
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
 
   useEffect(() => {
-    setMessages([
-      {
-        text: 'Hi there! I am Legacy AI, your assistant for transforming legacy code into modern code.',
-        sender: 'bot'
-      },
-      {
-        text: 'Please provide your GitHub repo link:',
-        sender: 'bot'
-      }
-    ]);
-  }, []);
+  setMessages([
+    {
+      text: 'Hi there! I am Legacy AI, your assistant for transforming legacy code into modern code.',
+      sender: 'bot'
+    },
+    {
+      text: 'Please provide your GitHub repo link:',
+      sender: 'bot'
+    }
+  ]);
+}, []); 
 
+// useEffect(() => {
+//   if (chatBoxRef.current) {
+//     chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+//   }
+// }, [messages]); 
+
+  function formatSummaryGrouped(summary) {
+  const sections = summary.split('\n\n* ').map(s => s.trim().replace(/^\* /, ''));
+  return (
+    <div>
+      <strong>Summary:</strong>
+      <ul>
+        {sections.map((section, idx) => {
+          const [heading, ...rest] = section.split(':');
+          const cleanHeading = heading.replace(/^\*+\s*/, '').replace(/^\*+\s*/, '').replace(/\*+/g, '').trim();
+          const content = rest.join(':').trim();
+          return (
+            <li key={idx}>
+              <strong>{cleanHeading}:</strong>
+              <div style={{ marginLeft: '12px', marginTop: '4px' }}>
+                {content
+                  .split('\n')
+                  .filter(line => line.trim())
+                  .map((line, i) => (
+                    <div key={i}>{line.replace(/^\*+\s*/, '').replace(/\*+/g, '').trim()}</div>
+                  ))}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
   const handleSend = async () => {
     if (!inputText.trim()) {
       alert('Cannot send empty message');
@@ -61,14 +96,18 @@ const Input = () => {
         });
 
         if (res.ok) {
-          const data = await res.json();
+  const data = await res.json();
           setMessages((prev) => [
-            ...prev,
-            { text: `Summary: ${data.summary}`, sender: 'bot' },
-            { text: 'Now, please provide your requirement:', sender: 'bot' }
-          ]);
-          setStep(3);
-        }
+          ...prev,
+          {
+            text: formatSummaryGrouped(data.summary),
+            sender: 'bot'
+          },
+          { text: 'Now, please provide your requirement:', sender: 'bot' }
+        ]);
+        console.log('repo link:', inputText);
+  setStep(3);
+}
       } catch (error) {
         console.error('Summary fetch error:', error);
       }
@@ -81,6 +120,7 @@ const Input = () => {
         { text: 'Thanks for providing the details. We are working on it!', sender: 'bot' }
       ]);
       setStep(4);
+        console.log('repo link after requirement:', githubRepo); // <-- Log repo link here
 
       try {
         const res = await fetch(API_ENDPOINT, {
@@ -143,7 +183,7 @@ const Input = () => {
         <h2 className="title">LegacyTransform AI ✨</h2>
       </nav>
 
-      <div className="chat-box">
+      <div className="chat-box" ref={chatBoxRef}>
         {messages.length === 0 ? (
           <div className="placeholder">
             👋 <strong>Start the conversation!</strong>
@@ -160,11 +200,11 @@ const Input = () => {
                 {msg.text}
               </p>
               {msg.file && msg.sender !== 'bot' && <p>📎 {msg.file.name}</p>}
-              {msg.sender === 'bot' && msg.showDownload && (
+              {/* {msg.sender === 'bot' && msg.showDownload && (
                 <button className="download-btn" onClick={downloadHardcodedFile}>
-                  Download File
+                  Link to Merge Request
                 </button>
-              )}
+              )} */}
             </div>
           ))
         )}
@@ -173,7 +213,7 @@ const Input = () => {
       <div className="input-area">
         <input
           type="text"
-          placeholder="Please type your message..."
+          placeholder="Please type your message and press ENTER to send"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyDown={handleKeyPress}
