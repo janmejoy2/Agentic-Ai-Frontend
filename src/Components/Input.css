@@ -227,7 +227,7 @@
   word-break: break-all;   /* Break long words if needed */
 }
 
-/* File Error */
+/* File Error CSS*/
 .file-error {
   margin-top: 8px;
   color: #d32f2f;
