@@ -202,7 +202,7 @@ const Input = () => {
               {msg.file && msg.sender !== 'bot' && <p>📎 {msg.file.name}</p>}
               {/* {msg.sender === 'bot' && msg.showDownload && (
                 <button className="download-btn" onClick={downloadHardcodedFile}>
-                  Link to Merge Request
+                  Link to Merge Request:
                 </button>
               )} */}
             </div>
