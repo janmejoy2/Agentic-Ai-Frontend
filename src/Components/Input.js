@@ -25,6 +25,65 @@ const Input = () => {
   const [requestMessage, setRequestMessage] = useState('');
   const [step, setStep] = useState(2); 
   const chatBoxRef = useRef(null);
+  const lastSpokenIndex = useRef(-1);
+  const ttsQueue = useRef([]);
+  const isSpeaking = useRef(false);
+
+  // Helper to recursively extract text from JSX/React elements
+  function extractTextFromJSX(node) {
+    if (typeof node === 'string' || typeof node === 'number') {
+      return node.toString();
+    }
+    if (Array.isArray(node)) {
+      return node.map(extractTextFromJSX).join(' ');
+    }
+    if (node && node.props && node.props.children) {
+      return extractTextFromJSX(node.props.children);
+    }
+    return '';
+  }
+
+  function extractText(msg) {
+    if (typeof msg.text === 'string' || typeof msg.text === 'number') {
+      return msg.text.toString();
+    } else if (typeof msg.text === 'object') {
+      return extractTextFromJSX(msg.text);
+    }
+    return '';
+  }
+
+  // Function to process the TTS queue
+  function processQueue() {
+    if (isSpeaking.current || ttsQueue.current.length === 0) return;
+    const nextText = ttsQueue.current.shift();
+    if (nextText) {
+      const utterance = new window.SpeechSynthesisUtterance(nextText);
+      isSpeaking.current = true;
+      utterance.onend = () => {
+        isSpeaking.current = false;
+        processQueue();
+      };
+      window.speechSynthesis.cancel(); // Clear any previous utterances
+      window.speechSynthesis.speak(utterance);
+    }
+  }
+
+  useEffect(() => {
+    if (messages.length === 0) return;
+    // Queue up any new bot messages
+    for (let i = lastSpokenIndex.current + 1; i < messages.length; i++) {
+      const msg = messages[i];
+      if (msg.sender === 'bot') {
+        const textToSpeak = extractText(msg);
+        if (textToSpeak) {
+          ttsQueue.current.push(textToSpeak);
+        }
+        lastSpokenIndex.current = i;
+      }
+    }
+    processQueue();
+    // eslint-disable-next-line
+  }, [messages]);
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
 
@@ -142,6 +201,9 @@ const Input = () => {
                     <div>
                       <a href={data.mr_link} target="_blank" rel="noopener noreferrer">
                         View Merge Request
+                      </a>
+                      <a href={data.actuator_health_url} target="_blank" rel="noopener noreferrer">
+                        View API Health
                       </a>
                     </div>
                   </>
