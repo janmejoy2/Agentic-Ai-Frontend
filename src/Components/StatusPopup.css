@@ -1,0 +1,40 @@
+.status-popup-overlay {
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+.status-popup {
+  background: #fff;
+  padding: 32px 48px;
+  border-radius: 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.15);
+  font-size: 1.2rem;
+  color: #003366;
+  font-weight: 600;
+  min-width: 320px;
+  text-align: center;
+}
+.status-bar-container {
+  width: 100%;
+  margin-top: 18px;
+  height: 6px;
+  background: #e3f2fd;
+  border-radius: 4px;
+  overflow: hidden;
+}
+.status-bar {
+  height: 100%;
+  width: 40%;
+  background: linear-gradient(90deg, #2196f3 40%, #64b5f6 100%);
+  border-radius: 4px;
+  animation: loading-bar 1.2s linear infinite;
+}
+@keyframes loading-bar {
+  0% { margin-left: -40%; width: 40%; }
+  50% { margin-left: 30%; width: 60%; }
+  100% { margin-left: 100%; width: 40%; }
+}

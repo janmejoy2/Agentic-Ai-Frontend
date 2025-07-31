@@ -4,6 +4,7 @@ import { formatSummaryGrouped,formatMrDetails } from './MessageFormatters';
 import { processQueue } from './tts';
 import ChatBox from './ChatBox';
 import './Input.css';
+import StatusPopup from './StatusPopup';
 
 const HARDCODED_FILE = {
   name: 'sample.txt',
@@ -34,6 +35,7 @@ const Input = () => {
   const isSpeaking = useRef(false);
   const [ttsEnabled, setTtsEnabled] = useState(true); 
   const lastMessageRef = useRef(null);
+  const [popup, setPopup] = useState({ show: false, message: '' });
 
 
   useEffect(() => {
@@ -83,6 +85,44 @@ const Input = () => {
       alert('Cannot send empty message');
       return;
     }
+    const handleMoreRequirement = (answer) => {
+  if (answer === 'yes') {
+    setMessages((prev) => [
+      ...prev,
+      { text: 'Please provide your requirement:', sender: 'bot' }
+    ]);
+    setStep(3);
+  } else {
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: (
+          <span>
+            Thank you for using LegacyTransform AI!
+            <br />
+            <button
+              className="diagram-btn"
+              style={{
+                marginTop: '12px',
+                background: '#2196f3',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '6px 14px',
+                cursor: 'pointer'
+              }}
+              onClick={() => window.location.reload()}
+            >
+              Start a New Chat
+            </button>
+          </span>
+        ),
+        sender: 'bot'
+      }
+    ]);
+    setStep(2);
+  }
+};
 
     const newMessage = { text: inputText, file: selectedFile, sender: 'user' };
     setMessages((prev) => [...prev, newMessage]);
@@ -91,6 +131,9 @@ const Input = () => {
 
     if (step === 2) {
       setGithubRepo(inputText);
+      setTimeout(() => {
+        setPopup({ show: true, message: 'Generating Summary, Please wait..' });
+      }, 1000);
       try {
         const res = await fetch('http://127.0.0.1:5000/summarize', {
           method: 'POST',
@@ -99,7 +142,7 @@ const Input = () => {
         });
 
         if (res.ok) {
-  const data = await res.json();
+        const data = await res.json();
           setMessages((prev) => [
           ...prev,
           {
@@ -110,11 +153,16 @@ const Input = () => {
         ]);
         console.log('repo link:', inputText);
   setStep(3);
+  setPopup({ show: false, message: '' });
 }
       } catch (error) {
+        setPopup({ show: false, message: '' });
         console.error('Summary fetch error:', error);
       }
     } else if (step === 3) {
+      setTimeout(() => {
+        setPopup({ show: true, message: 'Generating merge request...' });
+      }, 1000);
       const currentRequestMessage = inputText;
       setRequestMessage(currentRequestMessage);
 
@@ -133,18 +181,51 @@ const Input = () => {
         });
         
         if (res.ok) {
+          setPopup({ show: false, message: '' });
   const data = await res.json();
   console.log("data of reponse", data);
 
-  setTimeout(() => {
-    setMessages((prev) => [
-      ...prev,
-      {
-        text: formatMrDetails(data.mr_details, data),
-        sender: 'bot',
-        showDownload: true
-      }
-    ]);
+      setTimeout(() => {
+  setMessages((prev) => [
+    ...prev,
+    {
+      text: formatMrDetails(data.mr_details, data),
+      sender: 'bot',
+      showDownload: true
+    },
+    {
+      text: (
+        <span>
+          Please find the above requested changes.<br />
+          Do you want me to help with other requirements?
+          <br />
+          <button
+            className="diagram-btn"
+            style={{ margin: '8px 8px 0 0',
+              background: '#81c784', // light green
+              color: '#fff',
+              border: 'none'
+             }}
+            onClick={() => handleMoreRequirement('yes')}
+          >
+            Yes
+          </button>
+          <button
+            className="diagram-btn"
+            style={{ margin: '8px 0 0 0',
+               background: '#e57373', // light red
+              color: '#fff',
+              border: 'none'
+             }}
+            onClick={() => handleMoreRequirement('no')}
+          >
+            No
+          </button>
+        </span>
+      ),
+      sender: 'bot'
+    }
+  ]);
 }, 3000);
       }
       else {
@@ -154,6 +235,7 @@ const Input = () => {
         ]);
       }
     } catch (error) {
+      setPopup({ show: false, message: '' });
       console.error('Request error:', error);
       setMessages((prev) => [
         ...prev,
@@ -178,7 +260,7 @@ const Input = () => {
         <div className="nav-links"></div>
         <h2 className="title">LegacyTransform AI ✨</h2>
       </nav>
-
+    <StatusPopup message={popup.message} show={popup.show} />
       <ChatBox messages={messages} lastMessageRef={lastMessageRef} />
       <div className="input-area">
         <input

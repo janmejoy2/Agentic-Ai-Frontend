@@ -30,6 +30,24 @@ export function formatSummaryGrouped(summary) {
 }
 
 export function formatMrDetails(details, data) {
+
+  //  const diagramUrl = data.plantuml_png
+  //   ? `file:///C:/Users/ypragna/Agentic%20recent/Agentic-Ai-Backend/diagrams/${data.plantuml_png.split('\\').pop()}`
+  //   : null;
+const diagramUrl = data.plantuml_png
+  ? `http://localhost:5000/diagrams/${data.plantuml_png.split('\\').pop()}`
+  : null;
+  
+  const diagramName = 'Flow Chart';
+
+  const openDiagram = () => {
+  if (diagramUrl) {
+    console.log('Opening flow chart at:', diagramUrl); // Log the file path
+    window.open(diagramUrl, '_blank', 'noopener,noreferrer');
+  }
+};
+
+  // Format MR details similar to summary
   const sections = details
     .replace(/\*/g, '')
     .split(/\n\s*\n/)
@@ -61,30 +79,34 @@ export function formatMrDetails(details, data) {
           );
         })}
       </ul>
-      <div>
+      <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
         {data.mr_link && (
-          <a href={data.mr_link} target="_blank" rel="noopener noreferrer">
-            View Merge Request
-          </a>
+          <button
+            type="button"
+            className="diagram-btn"
+            onClick={() => window.open(data.mr_link, '_blank', 'noopener,noreferrer')}
+          >
+            Merge Request
+          </button>
         )}
-      </div>
-      <div>
         {data.actuator_health_url && (
-          <a href={data.actuator_health_url} target="_blank" rel="noopener noreferrer">
-            View API Health
-          </a>
+          <button
+            type="button"
+            className="diagram-btn"
+            onClick={() => window.open(data.actuator_health_url, '_blank', 'noopener,noreferrer')}
+          >
+            API Health
+          </button>
         )}
-      </div>
-      <div>
-      {data.plantuml_png && (
-        <a
-          href={`http://localhost:5000/diagrams/${data.plantuml_png.split('\\').pop()}`}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          {data.plantuml_png.split('\\').pop()}
-        </a>
-      )}
+        {diagramUrl && (
+          <button
+            type="button"
+            className="diagram-btn"
+            onClick={openDiagram}
+          >
+            {diagramName}
+          </button>
+        )}
       </div>
     </div>
   );
