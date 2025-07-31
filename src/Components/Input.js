@@ -1,4 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { extractText, extractTextFromJSX } from './utils';
+import { formatSummaryGrouped,formatMrDetails } from './MessageFormatters';
+import { processQueue } from './tts';
+import ChatBox from './ChatBox';
 import './Input.css';
 
 const HARDCODED_FILE = {
@@ -28,62 +32,30 @@ const Input = () => {
   const lastSpokenIndex = useRef(-1);
   const ttsQueue = useRef([]);
   const isSpeaking = useRef(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true); 
+  const lastMessageRef = useRef(null);
 
-  // Helper to recursively extract text from JSX/React elements
-  function extractTextFromJSX(node) {
-    if (typeof node === 'string' || typeof node === 'number') {
-      return node.toString();
-    }
-    if (Array.isArray(node)) {
-      return node.map(extractTextFromJSX).join(' ');
-    }
-    if (node && node.props && node.props.children) {
-      return extractTextFromJSX(node.props.children);
-    }
-    return '';
-  }
-
-  function extractText(msg) {
-    if (typeof msg.text === 'string' || typeof msg.text === 'number') {
-      return msg.text.toString();
-    } else if (typeof msg.text === 'object') {
-      return extractTextFromJSX(msg.text);
-    }
-    return '';
-  }
-
-  // Function to process the TTS queue
-  function processQueue() {
-    if (isSpeaking.current || ttsQueue.current.length === 0) return;
-    const nextText = ttsQueue.current.shift();
-    if (nextText) {
-      const utterance = new window.SpeechSynthesisUtterance(nextText);
-      isSpeaking.current = true;
-      utterance.onend = () => {
-        isSpeaking.current = false;
-        processQueue();
-      };
-      window.speechSynthesis.cancel(); // Clear any previous utterances
-      window.speechSynthesis.speak(utterance);
-    }
-  }
 
   useEffect(() => {
+    if (lastMessageRef.current) {
+        lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     if (messages.length === 0) return;
     // Queue up any new bot messages
     for (let i = lastSpokenIndex.current + 1; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg.sender === 'bot') {
+      if (msg.sender === 'bot' && ttsEnabled && i < 2) {
         const textToSpeak = extractText(msg);
         if (textToSpeak) {
           ttsQueue.current.push(textToSpeak);
         }
         lastSpokenIndex.current = i;
+        if (i === 1) setTtsEnabled(false);
       }
     }
-    processQueue();
+    processQueue(ttsQueue, isSpeaking, ttsEnabled);
     // eslint-disable-next-line
-  }, [messages]);
+  }, [messages, ttsEnabled]);
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
 
@@ -106,34 +78,6 @@ const Input = () => {
 //   }
 // }, [messages]); 
 
-  function formatSummaryGrouped(summary) {
-  const sections = summary.split('\n\n* ').map(s => s.trim().replace(/^\* /, ''));
-  return (
-    <div>
-      <strong>Summary:</strong>
-      <ul>
-        {sections.map((section, idx) => {
-          const [heading, ...rest] = section.split(':');
-          const cleanHeading = heading.replace(/^\*+\s*/, '').replace(/^\*+\s*/, '').replace(/\*+/g, '').trim();
-          const content = rest.join(':').trim();
-          return (
-            <li key={idx}>
-              <strong>{cleanHeading}:</strong>
-              <div style={{ marginLeft: '12px', marginTop: '4px' }}>
-                {content
-                  .split('\n')
-                  .filter(line => line.trim())
-                  .map((line, i) => (
-                    <div key={i}>{line.replace(/^\*+\s*/, '').replace(/\*+/g, '').trim()}</div>
-                  ))}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
   const handleSend = async () => {
     if (!inputText.trim()) {
       alert('Cannot send empty message');
@@ -187,47 +131,37 @@ const Input = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ githubRepo, requestMessage: currentRequestMessage }),
         });
-
+        
         if (res.ok) {
-          const data = await res.json();
-          setTimeout(() => {
-            setMessages((prev) => [
-              ...prev,
-              {
-                text: (
-                  <>
-                    <div><strong>MR Details:</strong></div>
-                    <pre style={{ whiteSpace: 'pre-wrap' }}>{data.mr_details}</pre>
-                    <div>
-                      <a href={data.mr_link} target="_blank" rel="noopener noreferrer">
-                        View Merge Request
-                      </a>
-                      <a href={data.actuator_health_url} target="_blank" rel="noopener noreferrer">
-                        View API Health
-                      </a>
-                    </div>
-                  </>
-                ),
-                sender: 'bot',
-                showDownload: true
-              }
-            ]);
-          }, 3000);
-        } else {
-          setMessages((prev) => [
-            ...prev,
-            { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
-          ]);
-        }
-      } catch (error) {
-        console.error('Request error:', error);
+  const data = await res.json();
+  console.log("data of reponse", data);
+
+  setTimeout(() => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: formatMrDetails(data.mr_details, data),
+        sender: 'bot',
+        showDownload: true
+      }
+    ]);
+}, 3000);
+      }
+      else {
         setMessages((prev) => [
           ...prev,
           { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
         ]);
       }
+    } catch (error) {
+      console.error('Request error:', error);
+      setMessages((prev) => [
+        ...prev,
+        { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
+      ]);
     }
-  };
+  }
+};
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') handleSend();
@@ -245,33 +179,7 @@ const Input = () => {
         <h2 className="title">LegacyTransform AI ✨</h2>
       </nav>
 
-      <div className="chat-box" ref={chatBoxRef}>
-        {messages.length === 0 ? (
-          <div className="placeholder">
-            👋 <strong>Start the conversation!</strong>
-            <p>Type your message and attach a file below.</p>
-          </div>
-        ) : (
-          messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`chat-message ${msg.sender === 'bot' ? 'bot-message' : 'user-message'}`}
-            >
-              <p>
-                {msg.sender === 'bot' ? '🤖 ' : '🧑 '}
-                {msg.text}
-              </p>
-              {msg.file && msg.sender !== 'bot' && <p>📎 {msg.file.name}</p>}
-              {/* {msg.sender === 'bot' && msg.showDownload && (
-                <button className="download-btn" onClick={downloadHardcodedFile}>
-                  Link to Merge Request
-                </button>
-              )} */}
-            </div>
-          ))
-        )}
-      </div>
-
+      <ChatBox messages={messages} lastMessageRef={lastMessageRef} />
       <div className="input-area">
         <input
           type="text"
