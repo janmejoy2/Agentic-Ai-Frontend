@@ -1,5 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { extractText, extractTextFromJSX } from './utils';
+import { formatSummaryGrouped,formatMrDetails } from './MessageFormatters';
+import { processQueue } from './tts';
+import ChatBox from './ChatBox';
 import './Input.css';
+import StatusPopup from './StatusPopup';
 
 const HARDCODED_FILE = {
   name: 'sample.txt',
@@ -28,62 +33,30 @@ const Input = () => {
   const lastSpokenIndex = useRef(-1);
   const ttsQueue = useRef([]);
   const isSpeaking = useRef(false);
+  const [ttsEnabled, setTtsEnabled] = useState(true); 
+  const lastMessageRef = useRef(null);
+  const [popup, setPopup] = useState({ show: false, message: '' });
 
-  // Helper to recursively extract text from JSX/React elements
-  function extractTextFromJSX(node) {
-    if (typeof node === 'string' || typeof node === 'number') {
-      return node.toString();
-    }
-    if (Array.isArray(node)) {
-      return node.map(extractTextFromJSX).join(' ');
-    }
-    if (node && node.props && node.props.children) {
-      return extractTextFromJSX(node.props.children);
-    }
-    return '';
-  }
-
-  function extractText(msg) {
-    if (typeof msg.text === 'string' || typeof msg.text === 'number') {
-      return msg.text.toString();
-    } else if (typeof msg.text === 'object') {
-      return extractTextFromJSX(msg.text);
-    }
-    return '';
-  }
-
-  // Function to process the TTS queue
-  function processQueue() {
-    if (isSpeaking.current || ttsQueue.current.length === 0) return;
-    const nextText = ttsQueue.current.shift();
-    if (nextText) {
-      const utterance = new window.SpeechSynthesisUtterance(nextText);
-      isSpeaking.current = true;
-      utterance.onend = () => {
-        isSpeaking.current = false;
-        processQueue();
-      };
-      window.speechSynthesis.cancel(); // Clear any previous utterances
-      window.speechSynthesis.speak(utterance);
-    }
-  }
 
   useEffect(() => {
+    if (lastMessageRef.current) {
+        lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
+      }
     if (messages.length === 0) return;
-    // Queue up any new bot messages
     for (let i = lastSpokenIndex.current + 1; i < messages.length; i++) {
       const msg = messages[i];
-      if (msg.sender === 'bot') {
+      if (msg.sender === 'bot' && ttsEnabled && i < 2) {
         const textToSpeak = extractText(msg);
         if (textToSpeak) {
           ttsQueue.current.push(textToSpeak);
         }
         lastSpokenIndex.current = i;
+        if (i === 1) setTtsEnabled(false);
       }
     }
-    processQueue();
+    processQueue(ttsQueue, isSpeaking, ttsEnabled);
     // eslint-disable-next-line
-  }, [messages]);
+  }, [messages, ttsEnabled]);
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
 
@@ -106,39 +79,49 @@ const Input = () => {
 //   }
 // }, [messages]); 
 
-  function formatSummaryGrouped(summary) {
-  const sections = summary.split('\n\n* ').map(s => s.trim().replace(/^\* /, ''));
-  return (
-    <div>
-      <strong>Summary:</strong>
-      <ul>
-        {sections.map((section, idx) => {
-          const [heading, ...rest] = section.split(':');
-          const cleanHeading = heading.replace(/^\*+\s*/, '').replace(/^\*+\s*/, '').replace(/\*+/g, '').trim();
-          const content = rest.join(':').trim();
-          return (
-            <li key={idx}>
-              <strong>{cleanHeading}:</strong>
-              <div style={{ marginLeft: '12px', marginTop: '4px' }}>
-                {content
-                  .split('\n')
-                  .filter(line => line.trim())
-                  .map((line, i) => (
-                    <div key={i}>{line.replace(/^\*+\s*/, '').replace(/\*+/g, '').trim()}</div>
-                  ))}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </div>
-  );
-}
   const handleSend = async () => {
     if (!inputText.trim()) {
       alert('Cannot send empty message');
       return;
     }
+    const handleMoreRequirement = (answer) => {
+  if (answer === 'yes') {
+    setMessages((prev) => [
+      ...prev,
+      { text: 'Please provide your requirement:', sender: 'bot' }
+    ]);
+    setStep(3);
+  } else {
+    setMessages((prev) => [
+      ...prev,
+      {
+        text: (
+          <span>
+            Thank you for using LegacyTransform AI!
+            <br />
+            <button
+              className="diagram-btn"
+              style={{
+                marginTop: '12px',
+                background: '#2196f3',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '4px',
+                padding: '6px 14px',
+                cursor: 'pointer'
+              }}
+              onClick={() => window.location.reload()}
+            >
+              Start a New Chat
+            </button>
+          </span>
+        ),
+        sender: 'bot'
+      }
+    ]);
+    setStep(2);
+  }
+};
 
     const newMessage = { text: inputText, file: selectedFile, sender: 'user' };
     setMessages((prev) => [...prev, newMessage]);
@@ -147,6 +130,9 @@ const Input = () => {
 
     if (step === 2) {
       setGithubRepo(inputText);
+      setTimeout(() => {
+        setPopup({ show: true, message: 'Generating Summary, Please wait..' });
+      }, 1000);
       try {
         const res = await fetch('http://127.0.0.1:5000/summarize', {
           method: 'POST',
@@ -155,7 +141,7 @@ const Input = () => {
         });
 
         if (res.ok) {
-  const data = await res.json();
+        const data = await res.json();
           setMessages((prev) => [
           ...prev,
           {
@@ -166,11 +152,16 @@ const Input = () => {
         ]);
         console.log('repo link:', inputText);
   setStep(3);
+  setPopup({ show: false, message: '' });
 }
       } catch (error) {
+        setPopup({ show: false, message: '' });
         console.error('Summary fetch error:', error);
       }
     } else if (step === 3) {
+      setTimeout(() => {
+        setPopup({ show: true, message: 'Generating merge request...' });
+      }, 1000);
       const currentRequestMessage = inputText;
       setRequestMessage(currentRequestMessage);
 
@@ -187,47 +178,71 @@ const Input = () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ githubRepo, requestMessage: currentRequestMessage }),
         });
-
+        
         if (res.ok) {
-          const data = await res.json();
-          setTimeout(() => {
-            setMessages((prev) => [
-              ...prev,
-              {
-                text: (
-                  <>
-                    <div><strong>MR Details:</strong></div>
-                    <pre style={{ whiteSpace: 'pre-wrap' }}>{data.mr_details}</pre>
-                    <div>
-                      <a href={data.mr_link} target="_blank" rel="noopener noreferrer">
-                        View Merge Request
-                      </a>
-                      <a href={data.actuator_health_url} target="_blank" rel="noopener noreferrer">
-                        View API Health
-                      </a>
-                    </div>
-                  </>
-                ),
-                sender: 'bot',
-                showDownload: true
-              }
-            ]);
-          }, 3000);
-        } else {
-          setMessages((prev) => [
-            ...prev,
-            { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
-          ]);
-        }
-      } catch (error) {
-        console.error('Request error:', error);
+          setPopup({ show: false, message: '' });
+  const data = await res.json();
+  console.log("data of reponse", data);
+
+      setTimeout(() => {
+  setMessages((prev) => [
+    ...prev,
+    {
+      text: formatMrDetails(data.mr_details, data),
+      sender: 'bot',
+      showDownload: true
+    },
+    {
+      text: (
+        <span>
+          Please find the above requested changes.<br />
+          Do you want me to help with other requirements?
+          <br />
+          <button
+            className="diagram-btn"
+            style={{ margin: '8px 8px 0 0',
+              background: '#81c784', // light green
+              color: '#fff',
+              border: 'none'
+             }}
+            onClick={() => handleMoreRequirement('yes')}
+          >
+            Yes
+          </button>
+          <button
+            className="diagram-btn"
+            style={{ margin: '8px 0 0 0',
+               background: '#e57373', // light red
+              color: '#fff',
+              border: 'none'
+             }}
+            onClick={() => handleMoreRequirement('no')}
+          >
+            No
+          </button>
+        </span>
+      ),
+      sender: 'bot'
+    }
+  ]);
+}, 3000);
+      }
+      else {
         setMessages((prev) => [
           ...prev,
           { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
         ]);
       }
+    } catch (error) {
+      setPopup({ show: false, message: '' });
+      console.error('Request error:', error);
+      setMessages((prev) => [
+        ...prev,
+        { text: 'There was an error processing your request. Please try again.', sender: 'bot' }
+      ]);
     }
-  };
+  }
+};
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') handleSend();
@@ -244,34 +259,8 @@ const Input = () => {
         <div className="nav-links"></div>
         <h2 className="title">LegacyTransform AI ✨</h2>
       </nav>
-
-      <div className="chat-box" ref={chatBoxRef}>
-        {messages.length === 0 ? (
-          <div className="placeholder">
-            👋 <strong>Start the conversation!</strong>
-            <p>Type your message and attach a file below.</p>
-          </div>
-        ) : (
-          messages.map((msg, idx) => (
-            <div
-              key={idx}
-              className={`chat-message ${msg.sender === 'bot' ? 'bot-message' : 'user-message'}`}
-            >
-              <p>
-                {msg.sender === 'bot' ? '🤖 ' : '🧑 '}
-                {msg.text}
-              </p>
-              {msg.file && msg.sender !== 'bot' && <p>📎 {msg.file.name}</p>}
-              {/* {msg.sender === 'bot' && msg.showDownload && (
-                <button className="download-btn" onClick={downloadHardcodedFile}>
-                  Link to Merge Request
-                </button>
-              )} */}
-            </div>
-          ))
-        )}
-      </div>
-
+    <StatusPopup message={popup.message} show={popup.show} />
+      <ChatBox messages={messages} lastMessageRef={lastMessageRef} />
       <div className="input-area">
         <input
           type="text"
