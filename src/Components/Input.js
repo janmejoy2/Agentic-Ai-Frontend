@@ -43,7 +43,6 @@ const Input = () => {
         lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
       }
     if (messages.length === 0) return;
-    // Queue up any new bot messages
     for (let i = lastSpokenIndex.current + 1; i < messages.length; i++) {
       const msg = messages[i];
       if (msg.sender === 'bot' && ttsEnabled && i < 2) {
