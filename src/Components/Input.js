@@ -171,7 +171,7 @@ speakTTS('Here is your summary. Now, please provide your requirement.');
     } else if (step === 3) {
       setTimeout(() => {
         setPopup({ show: true, message: 'Generating merge request...' });
-        speakTTS('Generating merge request, applying code changes, please wait');
+        speakTTS('Generating merge request, applying code changes, please wait ');
       }, 1000);
       const currentRequestMessage = inputText;
       setRequestMessage(currentRequestMessage);
