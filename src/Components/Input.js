@@ -55,7 +55,6 @@ const Input = () => {
       }
     }
     processQueue(ttsQueue, isSpeaking, ttsEnabled);
-    // eslint-disable-next-line
   }, [messages, ttsEnabled]);
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
