@@ -14,3 +14,11 @@ export function processQueue(ttsQueue, isSpeaking, ttsEnabled) {
     window.speechSynthesis.speak(utterance);
   }
 }
+
+export const speakTTS = (text) => {
+  if ('speechSynthesis' in window) {
+    const utterance = new window.SpeechSynthesisUtterance(text);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  }
+};

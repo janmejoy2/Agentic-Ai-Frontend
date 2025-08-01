@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { extractText, extractTextFromJSX } from './utils';
 import { formatSummaryGrouped,formatMrDetails } from './MessageFormatters';
-import { processQueue } from './tts';
+import { processQueue, speakTTS } from './tts';
 import ChatBox from './ChatBox';
 import './Input.css';
 import StatusPopup from './StatusPopup';
+import SummaryWithDiagram from './Summarydigarm';
 
 const HARDCODED_FILE = {
   name: 'sample.txt',
@@ -55,7 +56,6 @@ const Input = () => {
       }
     }
     processQueue(ttsQueue, isSpeaking, ttsEnabled);
-    // eslint-disable-next-line
   }, [messages, ttsEnabled]);
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
@@ -90,6 +90,7 @@ const Input = () => {
       ...prev,
       { text: 'Please provide your requirement:', sender: 'bot' }
     ]);
+    speakTTS('Please provide your requirement.');
     setStep(3);
   } else {
     setMessages((prev) => [
@@ -119,6 +120,7 @@ const Input = () => {
         sender: 'bot'
       }
     ]);
+    speakTTS('Thank you for using LegacyTransform AI! ');
     setStep(2);
   }
 };
@@ -132,6 +134,7 @@ const Input = () => {
       setGithubRepo(inputText);
       setTimeout(() => {
         setPopup({ show: true, message: 'Generating Summary, Please wait..' });
+        speakTTS('Generating Summary');
       }, 1000);
       try {
         const res = await fetch('http://127.0.0.1:5000/summarize', {
@@ -141,16 +144,23 @@ const Input = () => {
         });
 
         if (res.ok) {
-        const data = await res.json();
-          setMessages((prev) => [
-          ...prev,
-          {
-            text: formatSummaryGrouped(data.summary),
-            sender: 'bot'
-          },
-          { text: 'Now, please provide your requirement:', sender: 'bot' }
-        ]);
-        console.log('repo link:', inputText);
+  const data = await res.json();
+  setMessages((prev) => [
+  ...prev,
+  {
+    text: (
+      <SummaryWithDiagram
+        summary={data.summary}
+        diagramUrl={`http://localhost:5000/diagrams/${data.plantuml_png.split('\\').pop()}`}
+      />
+    ),
+    sender: 'bot'
+  },
+  { text: 'Now, please provide your requirement:', sender: 'bot' }
+]);
+speakTTS('Here is your summary. Now, please provide your requirement.');
+
+  console.log('repo link:', inputText);
   setStep(3);
   setPopup({ show: false, message: '' });
 }
@@ -161,6 +171,7 @@ const Input = () => {
     } else if (step === 3) {
       setTimeout(() => {
         setPopup({ show: true, message: 'Generating merge request...' });
+        speakTTS('Generating merge request, applying code changes, please wait');
       }, 1000);
       const currentRequestMessage = inputText;
       setRequestMessage(currentRequestMessage);
@@ -169,6 +180,7 @@ const Input = () => {
         ...prev,
         { text: 'Thanks for providing the details. We are working on it!', sender: 'bot' }
       ]);
+      speakTTS('Thanks for providing the details. We are working on it!');
       setStep(4);
         console.log('repo link after requirement:', githubRepo); // <-- Log repo link here
 
@@ -225,6 +237,7 @@ const Input = () => {
       sender: 'bot'
     }
   ]);
+  speakTTS('Please find the above requested changes. Do you want me to help with other requirements?');
 }, 3000);
       }
       else {
