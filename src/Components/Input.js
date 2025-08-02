@@ -1,36 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { extractText, extractTextFromJSX } from './utils';
-import { formatSummaryGrouped,formatMrDetails } from './MessageFormatters';
+import { extractText } from './utils';
+import { formatMrDetails } from './MessageFormatters';
 import { processQueue, speakTTS } from './tts';
 import ChatBox from './ChatBox';
 import './Input.css';
 import StatusPopup from './StatusPopup';
 import SummaryWithDiagram from './Summarydigarm';
 
-const HARDCODED_FILE = {
-  name: 'sample.txt',
-  content: 'This is a hardcoded file content for download.'
-};
-
-const downloadHardcodedFile = () => {
-  const element = document.createElement('a');
-  const file = new Blob([HARDCODED_FILE.content], { type: 'text/plain' });
-  element.href = URL.createObjectURL(file);
-  element.download = HARDCODED_FILE.name;
-  document.body.appendChild(element);
-  element.click();
-  document.body.removeChild(element);
-};
-
 const Input = () => {
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
-  const [fileError, setFileError] = useState('');
+
   const [githubRepo, setGithubRepo] = useState('');
-  const [requestMessage, setRequestMessage] = useState('');
-  const [step, setStep] = useState(2); 
-  const chatBoxRef = useRef(null);
+  const [step, setStep] = useState(2);
   const lastSpokenIndex = useRef(-1);
   const ttsQueue = useRef([]);
   const isSpeaking = useRef(false);
@@ -40,22 +23,48 @@ const Input = () => {
 
 
   useEffect(() => {
-    if (lastMessageRef.current) {
+    // Scroll to the last message with a slight delay to ensure DOM is updated
+    const scrollToBottom = () => {
+      if (lastMessageRef.current) {
         lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
       }
+    };
+    
+    // Use setTimeout to ensure DOM is fully updated before scrolling
+    const timeoutId = setTimeout(scrollToBottom, 100);
+    
     if (messages.length === 0) return;
-    for (let i = lastSpokenIndex.current + 1; i < messages.length; i++) {
-      const msg = messages[i];
-      if (msg.sender === 'bot' && ttsEnabled && i < 2) {
-        const textToSpeak = extractText(msg);
-        if (textToSpeak) {
-          ttsQueue.current.push(textToSpeak);
+    
+    // Function to check if text is rendered and start TTS
+    const checkAndStartTTS = () => {
+      // Check if the last message is visible and rendered
+      if (lastMessageRef.current && lastMessageRef.current.offsetHeight > 0) {
+        for (let i = lastSpokenIndex.current + 1; i < messages.length; i++) {
+          const msg = messages[i];
+          if (msg.sender === 'bot' && ttsEnabled && i < 2) {
+            const textToSpeak = extractText(msg);
+            if (textToSpeak) {
+              ttsQueue.current.push(textToSpeak);
+            }
+            lastSpokenIndex.current = i;
+            if (i === 1) setTtsEnabled(false);
+          }
         }
-        lastSpokenIndex.current = i;
-        if (i === 1) setTtsEnabled(false);
+        processQueue(ttsQueue, isSpeaking, ttsEnabled);
+      } else {
+        // If not rendered yet, try again after a short delay
+        setTimeout(checkAndStartTTS, 100);
       }
-    }
-    processQueue(ttsQueue, isSpeaking, ttsEnabled);
+    };
+    
+    // Start checking for text rendering
+    const ttsTimeoutId = setTimeout(checkAndStartTTS, 200);
+    
+    // Cleanup timeouts on unmount or when messages change
+    return () => {
+      clearTimeout(timeoutId);
+      clearTimeout(ttsTimeoutId);
+    };
   }, [messages, ttsEnabled]);
 
   const API_ENDPOINT = 'http://127.0.0.1:5000/requirement';
@@ -84,13 +93,37 @@ const Input = () => {
       alert('Cannot send empty message');
       return;
     }
-    const handleMoreRequirement = (answer) => {
+    // Function to check if content is rendered and start TTS
+  const checkContentAndSpeak = (textToSpeak, checkElement = null) => {
+    const checkRendered = () => {
+      // If a specific element is provided, check that element
+      if (checkElement && checkElement.current && checkElement.current.offsetHeight > 0) {
+        speakTTS(textToSpeak);
+        return;
+      }
+      
+      // Otherwise check the last message
+      if (lastMessageRef.current && lastMessageRef.current.offsetHeight > 0) {
+        speakTTS(textToSpeak);
+        return;
+      }
+      
+      // If not rendered yet, try again after a short delay
+      setTimeout(checkRendered, 100);
+    };
+    
+    // Start checking after a brief initial delay
+    setTimeout(checkRendered, 200);
+  };
+
+  const handleMoreRequirement = (answer) => {
   if (answer === 'yes') {
     setMessages((prev) => [
       ...prev,
       { text: 'Please provide your requirement:', sender: 'bot' }
     ]);
-    speakTTS('Please provide your requirement.');
+    // Check if content is rendered before speaking
+    checkContentAndSpeak('Please provide your requirement.');
     setStep(3);
   } else {
     setMessages((prev) => [
@@ -120,7 +153,8 @@ const Input = () => {
         sender: 'bot'
       }
     ]);
-    speakTTS('Thank you for using LegacyTransform AI! ');
+    // Check if content is rendered before speaking
+    checkContentAndSpeak('Thank you for using LegacyTransform AI! ');
     setStep(2);
   }
 };
@@ -158,7 +192,8 @@ const Input = () => {
   },
   { text: 'Now, please provide your requirement:', sender: 'bot' }
 ]);
-speakTTS('Here is your summary. Now, please provide your requirement.');
+                 // Check if content is rendered before speaking
+         checkContentAndSpeak('Here is your summary. Now, please provide your requirement.');
 
   console.log('repo link:', inputText);
   setStep(3);
@@ -174,13 +209,13 @@ speakTTS('Here is your summary. Now, please provide your requirement.');
         speakTTS('Generating merge request, applying code changes, please wait');
       }, 1000);
       const currentRequestMessage = inputText;
-      setRequestMessage(currentRequestMessage);
 
       setMessages((prev) => [
         ...prev,
         { text: 'Thanks for providing the details. We are working on it!', sender: 'bot' }
       ]);
-      speakTTS('Thanks for providing the details. We are working on it!');
+             // Check if content is rendered before speaking
+       checkContentAndSpeak('Thanks for providing the details. We are working on it!');
       setStep(4);
         console.log('repo link after requirement:', githubRepo); // <-- Log repo link here
 
@@ -237,7 +272,15 @@ speakTTS('Here is your summary. Now, please provide your requirement.');
       sender: 'bot'
     }
   ]);
-  speakTTS('Please find the above requested changes. Do you want me to help with other requirements?');
+     // Check if content is rendered before speaking
+   checkContentAndSpeak('Please find the above requested changes. Do you want me to help with other requirements?');
+  
+  // Force scroll to bottom after MR details are displayed
+  setTimeout(() => {
+    if (lastMessageRef.current) {
+      lastMessageRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, 100);
 }, 3000);
       }
       else {
@@ -261,10 +304,6 @@ speakTTS('Here is your summary. Now, please provide your requirement.');
     if (e.key === 'Enter') handleSend();
   };
 
-  const handleFileChange = (e) => {
-    setSelectedFile(e.target.files[0]);
-    setFileError('');
-  };
 
   return (
     <div className="agentic-container">
@@ -285,14 +324,9 @@ speakTTS('Here is your summary. Now, please provide your requirement.');
         />
       </div>
 
-      {selectedFile && !fileError && (
+      {selectedFile && (
         <div className="file-preview">
           <p>📁 Selected file: {selectedFile.name}</p>
-        </div>
-      )}
-      {fileError && (
-        <div className="file-error">
-          <p>{fileError}</p>
         </div>
       )}
     </div>
