@@ -192,7 +192,7 @@ const Input = () => {
               text: (
                 <SummaryWithDiagram
                   summary={data.summary}
-                  diagramUrl={`http://localhost:5000/diagrams/${data.plantuml_png.split('\\').pop()}`}
+                  diagramUrl={data.plantuml_png ? `http://localhost:5000/diagrams/${data.plantuml_png.split('\\').pop()}` : null}
                 />
               ),
               sender: 'bot'
@@ -238,10 +238,40 @@ const Input = () => {
           console.log("data of reponse", data);
 
           setTimeout(() => {
+            // Only show flowchart button if plantuml_png is present in response
             setMessages((prev) => [
               ...prev,
               {
-                text: formatMrDetails(data.mr_details, data),
+                text: (
+                  <>
+                    {data.plantuml_png && (
+                      <button
+                        className="flowchart-toggle-btn"
+                        style={{
+                          minWidth: '120px',
+                          margin: '16px 0',
+                          background: flowchartEnabled ? '#1976d2' : '#bdbdbd',
+                          color: '#fff',
+                          border: 'none',
+                          borderRadius: '4px',
+                          padding: '6px 14px',
+                          cursor: 'pointer',
+                          fontWeight: 'bold',
+                          boxShadow: flowchartEnabled ? '0 2px 6px rgba(25, 118, 210, 0.15)' : 'none',
+                          transition: 'background 0.3s'
+                        }}
+                        onClick={() => {
+                          setFlowchartEnabled((prev) => !prev);
+                          setPopup({ show: true, message: flowchartEnabled ? 'Flowchart: false' : 'Flowchart: true' });
+                          setTimeout(() => setPopup({ show: false, message: '' }), 1500);
+                        }}
+                      >
+                        Flowchart: {flowchartEnabled ? 'true' : 'false'}
+                      </button>
+                    )}
+                    {formatMrDetails(data.mr_details, data)}
+                  </>
+                ),
                 sender: 'bot',
                 showDownload: true
               },
