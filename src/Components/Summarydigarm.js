@@ -8,22 +8,24 @@ const SummaryWithDiagram = ({ summary, diagramUrl }) => {
     <div>
       {formatSummaryGrouped(summary)}
       <div style={{ textAlign: 'left', marginTop: '18px' }}>
-        <button
-          className="diagram-btn"
-          style={{
-            background: '#2196f3',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '4px',
-            padding: '6px 14px',
-            cursor: 'pointer',
-            marginBottom: '10px'
-          }}
-          onClick={() => setShowDiagram((prev) => !prev)}
-        >
-          {showDiagram ? 'Hide Flow Chart' : 'Show Summary Flow Chart'}
-        </button>
-        {showDiagram && (
+        {diagramUrl && (
+          <button
+            className="diagram-btn"
+            style={{
+              background: '#2196f3',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '6px 14px',
+              cursor: 'pointer',
+              marginBottom: '10px'
+            }}
+            onClick={() => setShowDiagram((prev) => !prev)}
+          >
+            {showDiagram ? 'Hide Flow Chart' : 'Show Summary Flow Chart'}
+          </button>
+        )}
+        {showDiagram && diagramUrl && (
           <div>
             <img
               src={diagramUrl}
